@@ -1,3 +1,8 @@
+"""
+Helper functions for the filter optimization
+
+functions written by: David Ramsay
+"""
 import numpy as np
 import scipy.signal as sig
 import matplotlib.pyplot as plt

@@ -1,7 +1,13 @@
-# ------------------------------------------------------------
-# Objective: match a frequency responce my moving poles and zeros
-# ------------------------------------------------------------
+"""
+Class that trains biquad filter by adjusting the poles and zeros to get a desires
+amplitude response. Note that there is no preservation of phase at this point and that
+loss is only calculated against the give frequency and amplitudes
 
+
+@author: Tony Terrasa
+based off of work and guidance of David Ramsay
+"""
+from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 import scipy.signal as sig
@@ -90,64 +96,67 @@ class BiQuadOptimizer:
     def get_ps(self):
         return self.p.numpy()
 
-FS = 44100
-TARGET_FC = 2000 # cutoff frequency
-TARGET_ORDER = 2
-TARGET_TYPE = 'lowpass' # 'highpass', 'bandpass', 'bandstop'
 
-# target polar response
-# butterworth filter
-# this is returned coefficients (sos)
-target = sig.butter(TARGET_ORDER, TARGET_FC, TARGET_TYPE, analog=False, fs=FS, output='sos')
+if __name__ == "__main__":
 
+    FS = 44100
+    TARGET_FC = 2000 # cutoff frequency
+    TARGET_ORDER = 2
+    TARGET_TYPE = 'lowpass' # 'highpass', 'bandpass', 'bandstop'
 
-#calc a target at some set of frequencies
-# target that we are using is the magntide in db
-# of the desired
-targ_freqs = np.array([100,300,2200,5000,10000,12500,15000,20000])
-w, mag_target = get_mag_targ(target, targ_freqs, fs=FS)
+    # target polar response
+    # butterworth filter
+    # this is returned coefficients (sos)
+    target = sig.butter(TARGET_ORDER, TARGET_FC, TARGET_TYPE, analog=False, fs=FS, output='sos')
 
 
-NUM_EPOCHS = 1100
-optimizer = BiQuadOptimizer(learning_rate=0.001)
-
-losses = []
-zs = []
-ps = []
-
-for epoch in range(NUM_EPOCHS):
-
-    optimizer.train(w, mag_target)
-    losses.append(optimizer.current_loss)
-    zs.append(optimizer.get_zs())
-    ps.append(optimizer.get_ps())
-    print("loss: %f, z1: %f, z2: %f, p: %f,%f, g: %f"%(optimizer.current_loss, optimizer.z1.numpy()[0], optimizer.z2.numpy()[0], optimizer.p.numpy()[0], optimizer.p.numpy()[1], optimizer.g.numpy()[0]))
-    print('-'*25)
+    #calc a target at some set of frequencies
+    # target that we are using is the magntide in db
+    # of the desired
+    targ_freqs = np.array([100,300,2200,5000,10000,12500,15000,20000])
+    w, mag_target = get_mag_targ(target, targ_freqs, fs=FS)
 
 
-# ---------------------------------------------
-# plot the results
-# ---------------------------------------------
+    NUM_EPOCHS = 1100
+    optimizer = BiQuadOptimizer(learning_rate=0.001)
 
-# get the final poles and zeros
-z, p = tfvar_to_zpk([optimizer.z1, optimizer.z2], [optimizer.p])
+    losses = []
+    zs = []
+    ps = []
 
-# plot the target freq response
-plot_sos(target, FS, False)
-# plot the resulting freq response
-plot_zpk(z, p, optimizer.g.numpy()[0], FS, False)
+    for epoch in range(NUM_EPOCHS):
 
-# 
-z1,z2 = zip(*zs)
-p_r,p_i = zip(*ps)
+        optimizer.train(w, mag_target)
+        losses.append(optimizer.current_loss)
+        zs.append(optimizer.get_zs())
+        ps.append(optimizer.get_ps())
+        print("loss: %f, z1: %f, z2: %f, p: %f,%f, g: %f"%(optimizer.current_loss, optimizer.z1.numpy()[0], optimizer.z2.numpy()[0], optimizer.p.numpy()[0], optimizer.p.numpy()[1], optimizer.g.numpy()[0]))
+        print('-'*25)
 
-plt.figure()
-plt.plot(losses)
-plt.plot(z1)
-plt.plot(z2)
-plt.plot(p_r)
-plt.plot(p_i)
-plt.legend(["loss", "z1", "z2", "p_{real}", "p_{image}"])
-plt.xlabel("epochs")
-plt.ylabel("loss")
-plt.show()
+
+    # ---------------------------------------------
+    # plot the results
+    # ---------------------------------------------
+
+    # get the final poles and zeros
+    z, p = tfvar_to_zpk([optimizer.z1, optimizer.z2], [optimizer.p])
+
+    # plot the target freq response
+    plot_sos(target, FS, False)
+    # plot the resulting freq response
+    plot_zpk(z, p, optimizer.g.numpy()[0], FS, False)
+
+    # 
+    z1,z2 = zip(*zs)
+    p_r,p_i = zip(*ps)
+
+    plt.figure()
+    plt.plot(losses)
+    plt.plot(z1)
+    plt.plot(z2)
+    plt.plot(p_r)
+    plt.plot(p_i)
+    plt.legend(["loss", "z1", "z2", "p_{real}", "p_{image}"])
+    plt.xlabel("epochs")
+    plt.ylabel("loss")
+    plt.show()
