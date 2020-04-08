@@ -11,24 +11,19 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 import scipy.signal as sig
-from filter_helpers import *
+from pyAudioFilter.filter_helpers import *
+from pyAudioFilter.zpk_optimizable_filter import *
 
 
 #plot_sos(target, FS)
 
 MAX_POLE_NORM = 0.900
 
-class BiQuadOptimizer:
+class BiQuadOptimizer(ZPKOptimizableFilter):
 
     def __init__(self, learning_rate=0.1):
         # optimizing/pushing the poles and zeros of this system
-        self.z1 = tf.Variable(tf.random.uniform(shape=(1,), dtype=tf.float64)) # first zero: pure real
-        self.z2 = tf.Variable(tf.random.uniform(shape=(1,), dtype=tf.float64)) # first zero: pure real
-        self.p  = tf.Variable(tf.random.uniform(shape=(2,), dtype=tf.float64)) # both poles (complex conj)
-        self.p.assign(tf.clip_by_norm(self.p, MAX_POLE_NORM))
-        self.g = tf.Variable(tf.random.uniform(shape=(1,), dtype=tf.float64)) # gain
-        self.train_vars = [self.z1, self.z2, self.p, self.g]
-        self.learning_rate = learning_rate
+        super().__init__(num_zeros=2,num_poles=1,learning_rate=learning_rate)
 
     # for some reason, this breaks without the tf.function decorator
     #@tf.function
@@ -43,15 +38,19 @@ class BiQuadOptimizer:
 
         # calculating the magnitude of the output using the distances to Poles
         # and zeroes
-        dist_z1 = tf.sqrt(tf.square(x_loc - self.z1[0]) + tf.square(y_loc - 0) )
-        dist_z2 = tf.sqrt(tf.square(x_loc - self.z2[0]) + tf.square(y_loc - 0) )
-        dist_p1 = tf.sqrt(tf.square(x_loc - self.p[0])  +  tf.square(y_loc - self.p[1]))
-        dist_p2 = tf.sqrt(tf.square(x_loc - self.p[0])  +  tf.square(y_loc + self.p[1])) # complex conj
+        numerator = 1
+        denominator = 1
+
+        for z in self.zs:
+            numerator *= tf.sqrt(tf.square(x_loc - z[0]) + tf.square(y_loc - 0) )
+        for p in self.ps:
+            denominator *= tf.sqrt(tf.square(x_loc - p[0])  +  tf.square(y_loc - p[1]))
+
 
         # numerator and denominator of the transfer function for these frequencies
         # are product of ht edistances to the zeroes and poles
-        numerator = dist_z1 * dist_z2
-        denominator = dist_p1 * dist_p2
+        # numerator = dist_z1 * dist_z2
+        # denominator = dist_p1 * dist_p2
         #print(denominator)
 
         # magnitude in linear units and db
@@ -79,8 +78,6 @@ class BiQuadOptimizer:
             #print(self.train_vars)
             grads = t.gradient(self.current_loss, self.train_vars)
 
-        #print(grads)
-
         # apply the gradients to the variables
         for i, var in enumerate(self.train_vars):
             var.assign_sub(self.learning_rate*grads[i])
@@ -88,13 +85,8 @@ class BiQuadOptimizer:
         #print(grads)
 
         #print(tf.clip_by_norm(self.p, MAX_POLE_NORM))
-        self.p.assign(tf.clip_by_norm(self.p, MAX_POLE_NORM)) # keep pole in unit cirlce
-
-    def get_zs(self):
-        return (self.z1.numpy()[0], self.z2.numpy()[0])
-
-    def get_ps(self):
-        return self.p.numpy()
+        for p in self.ps:
+            p.assign(tf.clip_by_norm(p, MAX_POLE_NORM))
 
 
 if __name__ == "__main__":
@@ -129,8 +121,8 @@ if __name__ == "__main__":
         optimizer.train(w, mag_target)
         losses.append(optimizer.current_loss)
         zs.append(optimizer.get_zs())
-        ps.append(optimizer.get_ps())
-        print("loss: %f, z1: %f, z2: %f, p: %f,%f, g: %f"%(optimizer.current_loss, optimizer.z1.numpy()[0], optimizer.z2.numpy()[0], optimizer.p.numpy()[0], optimizer.p.numpy()[1], optimizer.g.numpy()[0]))
+        ps.append(optimizer.get_ps()[0])
+        print("loss: %f, z1: %f, z2: %f, p: %f,%f, g: %f"%(optimizer.current_loss, zs[-1][0], zs[-1][1], ps[-1][0], ps[-1][1], optimizer.g.numpy()[0]))
         print('-'*25)
 
 
@@ -139,24 +131,28 @@ if __name__ == "__main__":
     # ---------------------------------------------
 
     # get the final poles and zeros
-    z, p = tfvar_to_zpk([optimizer.z1, optimizer.z2], [optimizer.p])
+    z = optimizer.get_zs()
+    p = optimizer.get_ps(answer_complex=True)
 
     # plot the target freq response
     plot_sos(target, FS, False)
     # plot the resulting freq response
     plot_zpk(z, p, optimizer.g.numpy()[0], FS, False)
 
-    # 
-    z1,z2 = zip(*zs)
-    p_r,p_i = zip(*ps)
-
-    plt.figure()
-    plt.plot(losses)
-    plt.plot(z1)
-    plt.plot(z2)
-    plt.plot(p_r)
-    plt.plot(p_i)
-    plt.legend(["loss", "z1", "z2", "p_{real}", "p_{image}"])
-    plt.xlabel("epochs")
-    plt.ylabel("loss")
     plt.show()
+
+    # 
+    # print(ps)
+    # z1,z2 = zip(*zs)
+    # p_r,p_i = zip(*ps)
+
+    # plt.figure()
+    # plt.plot(losses)
+    # plt.plot(z1)
+    # plt.plot(z2)
+    # plt.plot(p_r)
+    # plt.plot(p_i)
+    # plt.legend(["loss", "z1", "z2", "p_{real}", "p_{image}"])
+    # plt.xlabel("epochs")
+    # plt.ylabel("loss")
+    # plt.show()
