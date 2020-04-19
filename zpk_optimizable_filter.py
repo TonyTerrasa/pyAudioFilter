@@ -18,6 +18,7 @@ from pyAudioFilter.filter_helpers import *
 #plot_sos(target, FS)
 
 MAX_POLE_NORM = 0.900
+pi = np.pi
 
 class ZPKOptimizableFilter:
 
@@ -65,6 +66,63 @@ class ZPKOptimizableFilter:
         print(f, h)
 
         return audioSample(h, type="f", Fs=fs) 
+
+    
+    def get_magnitudes_tf(self, freqs):
+        """
+
+        Create a transfer function at the given frequencies for the zpk 
+        as a tf object 
+        
+        ---------------------------------------------------------------------
+        INPUTS
+        ---------------------------------------------------------------------
+        freqs   		| (tf.Variable) list of frequencies at which to 
+                        | calculate the gain  
+        ---------------------------------------------------------------------
+        
+        
+        ---------------------------------------------------------------------
+        OUTPUTS
+        ---------------------------------------------------------------------
+        (tf.Variable) containg the transfer function gains at the given 
+        frequencies. Note that this is the 
+        ---------------------------------------------------------------------
+        
+        """
+        
+        # complex valued, rad/sec omegas 
+        jomegas = tf.complex(tf.zeros(tf.shape(freqs),dtype=freqs.dtype), 2*pi*freqs)
+        inputs = tf.exp(jomegas) 
+
+
+        print("after taking the exponent", inputs)
+        
+
+        # calculating the magnitude of the output using the distances to Poles
+        # and zeroes
+        numerator = 1
+        denominator = 1
+
+        for z in self.zs:
+            print(z)
+            complex_z = tf.complex(z, tf.cast(0., z.dtype)) 
+            numerator *= (inputs - complex_z)
+            print(numerator)
+        for p in self.ps:
+            complex_p1 = tf.complex(p[0], p[1])
+            complex_p2 = tf.complex(p[0], -p[1])
+            denominator *= (inputs - complex_p1) * (inputs - complex_p2)
+
+
+        # have to make g a complex number for this calculation
+        complex_g = tf.complex(self.g, tf.cast(0, self.g.dtype))
+
+        # magnitude in linear units and db
+        H = complex_g * (numerator / denominator)
+
+        return H
+
 
     def get_zs(self):
         """
@@ -116,11 +174,26 @@ if __name__ == "__main__":
     
     zpk_filter = ZPKOptimizableFilter()
 
+    a = audioSample(np.arange(10000))
+    freqs = a.f()
 
-    freq_response = zpk_filter.freqz(512, 44e3)
+    tf_freqs = tf.constant(freqs, dtype=tf.float64)
 
-    freq_response.plot(both=True)
+    print("frequencies", tf_freqs)
 
-    print(freq_response)
+    h = zpk_filter.get_magnitudes_tf(tf_freqs)
+
+    mags = tf.abs(h) # this is now a float64
+    phases = tf.math.angle(h) # also float64
+
+    print("h_mags equals:", mags)
+    print("h_phase equals:", phases)
+
+    
+
+
+    # freq_response = zpk_filter.freqz(512, 44e3) 
+    # freq_response.plot(both=True)
+    # print(freq_response)
 
     
