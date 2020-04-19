@@ -38,17 +38,38 @@ def test_apply_filter():
     """
 
     
-    filename = "/home/terrasa/UROP/polar-measurement/data/19_Jan15/spv1840.pkl" 
+    filename = "/home/terrasa/UROP/polar-measurement/data/19_Jan15_fixedpkls/spv1840.pkl" 
     pd = polarData.fromPkl(filename)
     filt = ZPKOptimizableFilter(num_zeros=2,num_poles=1)
+    worN = len(pd[0].f())
+    fs = pd[0].fs
+    filt_freqz = filt.freqz(worN, fs)
 
-    pd.plot()
-    pd.applyFilter(filt)
-    pd.plot()
+    filt_freqz.plot(both=True, fig=3, show=False, figtitle="Filter")
 
+    pd.setType("f")
+
+    test_frequencies = ([100,1000,1240, 10000])
+    pd.plotFreqs(test_frequencies, fig=1, show=False, title="BEFORE")
+    pd.applyFilter(filt_freqz)
+    pd.plotFreqs(test_frequencies, fig=2, show=True, title="AFTER")
+
+
+
+def pd_convert():
+    """
+    Application of a zpk filter to a polarData object
+    """
+
+    
+    filename = "/home/terrasa/UROP/polar-measurement/data/19_Jan15_fixedpkls/spv1840.pkl" 
+    pd = polarData.fromPkl(filename)
+
+    print(pd.toTF().shape)
 
 
 if __name__ == "__main__":
     # test_get_vars()
     # test_freqz()
-    test_apply_filter()
+    # test_apply_filter()
+    pd_convert()
