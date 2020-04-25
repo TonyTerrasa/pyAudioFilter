@@ -33,6 +33,10 @@ class ZPKOptimizableFilter:
         for p in self.ps:
             p.assign(tf.clip_by_norm(p, MAX_POLE_NORM))
 
+        # list addition with pure Python
+        # all Tensorflow Variables
+        self.train_vars = self.zs + self.ps + [self.g]
+
     def freqz(self, worN, fs):
         """
         Returns an audioSample of the frequency response corresponding to 
@@ -92,12 +96,10 @@ class ZPKOptimizableFilter:
         """
         
         # complex valued, rad/sec omegas 
+        omegas = 2*pi*freqs
         jomegas = tf.complex(tf.zeros(tf.shape(freqs),dtype=freqs.dtype), 2*pi*freqs)
-        inputs = tf.exp(jomegas) 
+        ejw = tf.exp(jomegas) 
 
-
-        print("after taking the exponent", inputs)
-        
 
         # calculating the magnitude of the output using the distances to Poles
         # and zeroes
@@ -105,14 +107,14 @@ class ZPKOptimizableFilter:
         denominator = 1
 
         for z in self.zs:
-            print(z)
+            # print(z)
             complex_z = tf.complex(z, tf.cast(0., z.dtype)) 
-            numerator *= (inputs - complex_z)
-            print(numerator)
+            numerator *= (ejw - complex_z)
+            # print(numerator)
         for p in self.ps:
             complex_p1 = tf.complex(p[0], p[1])
             complex_p2 = tf.complex(p[0], -p[1])
-            denominator *= (inputs - complex_p1) * (inputs - complex_p2)
+            denominator *= (ejw - complex_p1) * (ejw - complex_p2)
 
 
         # have to make g a complex number for this calculation
@@ -168,6 +170,9 @@ class ZPKOptimizableFilter:
         the gain of a filter
         """
         return self.g.numpy()[0]
+
+    
+    def get_train_vars(self): return self.train_vars
 
 
 if __name__ == "__main__":
