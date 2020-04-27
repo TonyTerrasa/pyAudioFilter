@@ -31,6 +31,7 @@ class PolarOptimizer:
         self.angles = angles
         self.freqs = freqs
         self.microphones = microphones
+        self.learning_rate = learning_rate
 
         # one filter per mic
         self.filters = [ZPKOptimizableFilter() for m in microphones]
@@ -70,8 +71,8 @@ class PolarOptimizer:
         
         """
 
-        lower_bound = tf.reduce_min(tf.where(vector > bounds[0]))
-        upper_bound = tf.reduce_max(tf.where(vector < bounds[1]))
+        lower_bound = tf.reduce_min(tf.where(vector >= bounds[0]))
+        upper_bound = tf.reduce_max(tf.where(vector <= bounds[1]))
 
         return lower_bound, upper_bound
 
@@ -109,22 +110,23 @@ class PolarOptimizer:
         system_response = self.get_system_resonse()
         # get the magnitudes, emulating log10
         mags = tf.abs(system_response)
-        system_response_db = 20*tf.log(mags)/tf.log(tf.constant(10, dtype=mags.dtype))
+        system_response_db = 20*tf.math.log(mags)/tf.math.log(tf.constant(10, dtype=mags.dtype))
 
         # get responses in our angle and frequency range
         theta_lower, theta_upper = self.get_angle_band(stop_band_theta)
         freq_lower, freq_upper = self.get_freq_band(stop_band_theta)
 
+        # just the angle range over the frequency range
         region_of_interest = system_response_db[theta_lower:theta_upper, freq_lower:freq_upper]
 
-        # zero out anything below the threshold 
-        loss = 0
+        # get the indexes that are above the given threshold
+        above_threshold_idx = tf.where(region_of_interest > threshold)
 
-        # loop through all magnitudes of the 
-        for mag in tf.reshape(region_of_interest, (tf.size(region_of_interest))):
-            # add how much greate than the threshold
-            if mag > threshold:
-                loss += mag-threshold
+        # get the values of the RIO at these indeces
+        above_threshold_vals = tf.gather_nd(region_of_interest, above_threshold_idx)
+
+        # the loss is the sum of how far away each is from the threshold
+        loss = tf.reduce_sum(above_threshold_vals-threshold)
 
         return loss
             
@@ -143,10 +145,9 @@ class PolarOptimizer:
         for i, var in enumerate(self.train_vars):
             var.assign_sub(self.learning_rate*grads[i])
 
-        #print(grads)
 
-        for p in self.ps:
-            p.assign(tf.clip_by_norm(p, MAX_POLE_NORM))
+        for filt in self.filters:
+            filt.clip_poles_by_norm(0.9)
 
     def response_length(self):
         """

@@ -125,6 +125,24 @@ class ZPKOptimizableFilter:
 
         return H
 
+    def clip_poles_by_norm(self, norm=1.0):
+        """
+        Clip the poles of this fliter by their norm. Typically done to 
+        maintain stability through the optimization process. Operation done
+        in place
+        
+        
+        ---------------------------------------------------------------------
+        INPUTS
+        ---------------------------------------------------------------------
+        norm			| (int, float) maximum norm of a pole
+        ---------------------------------------------------------------------
+        
+        """
+
+        for p in self.ps:
+            p.assign(tf.clip_by_norm(p, norm))
+
 
     def get_zs(self):
         """
