@@ -21,7 +21,7 @@ MAX_POLE_NORM = 0.9
 class PolarOptimizer:
 
 
-    def __init__(self, angles, freqs, microphones, learning_rate=0.1):
+    def __init__(self, angles, freqs, microphones, fs=44.1e3, learning_rate=0.1):
         """
         target_response should be iterable and indexable as 
         [angle, i] to yield an amplitude for target_freqs[i] in db
@@ -31,6 +31,7 @@ class PolarOptimizer:
         self.angles = angles
         self.freqs = freqs
         self.microphones = microphones
+        self.fs = fs
         self.learning_rate = learning_rate
 
         # one filter per mic
@@ -88,7 +89,8 @@ class PolarOptimizer:
         """
         return PolarOptimizer.get_band_slices(self.angles, bounds)
 
-    def loss(self, stop_band_theta, target_freq_range, threshold=-20.):
+    def loss(self, stop_band_theta, target_freq_range, threshold=-30., \
+        above_thresh=-10., k_below=0.001, k_above=0.001):
         """
 
         Calculates the loss aiming for a stop band between two angles and 
@@ -108,13 +110,14 @@ class PolarOptimizer:
         """
 
         system_response = self.get_system_resonse()
-        # get the magnitudes, emulating log10
+
+        # get the magnitudes, log10
         mags = tf.abs(system_response)
         system_response_db = 20*tf.math.log(mags)/tf.math.log(tf.constant(10, dtype=mags.dtype))
 
         # get responses in our angle and frequency range
         theta_lower, theta_upper = self.get_angle_band(stop_band_theta)
-        freq_lower, freq_upper = self.get_freq_band(stop_band_theta)
+        freq_lower, freq_upper = self.get_freq_band(target_freq_range)
 
         # just the angle range over the frequency range
         region_of_interest = system_response_db[theta_lower:theta_upper, freq_lower:freq_upper]
@@ -122,23 +125,43 @@ class PolarOptimizer:
         # get the indexes that are above the given threshold
         above_threshold_idx = tf.where(region_of_interest > threshold)
 
-        # get the values of the RIO at these indeces
+        # get the values of the ROI at these indeces
         above_threshold_vals = tf.gather_nd(region_of_interest, above_threshold_idx)
 
         # the loss is the sum of how far away each is from the threshold
-        loss = tf.reduce_sum(above_threshold_vals-threshold)
+        loss = k_below * tf.reduce_sum(above_threshold_vals-threshold)
+
+
+        # now, calculate loss from squashing the same frequencies outside 
+        # of the target theta range
+        roi_below_theta_min = system_response_db[:theta_lower, freq_lower:freq_upper]
+        roi_above_theta_max = system_response_db[theta_upper:, freq_lower:freq_upper]
+
+        # where pass-band is below the threshold
+        below_thresh_riobtm_idx = tf.where(roi_below_theta_min < above_thresh)
+        below_thresh_rioatm_idx = tf.where(roi_above_theta_max < above_thresh)
+
+
+        below_thresh_btm_vals = tf.gather_nd(roi_below_theta_min, below_thresh_riobtm_idx)
+        below_thresh_atm_vals = tf.gather_nd(roi_above_theta_max, below_thresh_rioatm_idx)
+
+        loss += k_above * tf.reduce_sum(threshold - below_thresh_btm_vals)
+        loss += k_above * tf.reduce_sum(threshold - below_thresh_atm_vals)
 
         return loss
             
-    def train(self, stop_band_theta, target_freq_range, threshold=-20.):
+    def train(self, stop_bands_theta, target_freq_range, threshold=-20.):
 
 
-        #print(self.current_loss)
+        self.current_loss = 0
             
-        # calculate the gradients for each variable
+        # calculate the gradients of the loss for each variable
         with tf.GradientTape() as t:
 
-            self.current_loss = self.loss(stop_band_theta, target_freq_range, threshold=-20.)
+            for stop_band in stop_bands_theta:
+                self.current_loss += self.loss(stop_band, target_freq_range,\
+                    threshold=threshold)
+
             grads = t.gradient(self.current_loss, self.train_vars)
 
         # apply the gradients to the variables
@@ -160,7 +183,7 @@ class PolarOptimizer:
     def get_system_resonse(self):
         """
         Get the 2-d array representing the total system response including 
-        the filters
+        the filters in the frequency domain
         
         ---------------------------------------------------------------------
         OUTPUTS
@@ -171,12 +194,18 @@ class PolarOptimizer:
         
         """
 
+        # allocating
         system_resonse = tf.zeros(self.microphones[0].shape, dtype=tf.complex128)
+
+        # necessary tiling shape for the frequency response of each filter
+        # used to create a matrix where each row is identical and is the 
+        # freq response of the filter of that microphone, allowing for element
+        # wise multiplication to apply the filter
         tile_shape = tf.constant([len(self.angles), 1]) 
 
         for mic, filt in zip(self.microphones, self.filters):
 
-            filt_response = filt.get_magnitudes_tf(self.freqs)
+            filt_response = filt.get_magnitudes_tf(self.freqs, fs=self.fs)
 
             # of the same shape as each microphone response. Contains a copy of 
             # filt_response for each microphone
@@ -189,6 +218,24 @@ class PolarOptimizer:
 
 
         return system_resonse
+
+    def to_polar_data(self):
+        """
+        Create a polarData object from this optimizer
+        
+        ---------------------------------------------------------------------
+        OUTPUTS
+        ---------------------------------------------------------------------
+        pd				| (pythonAudioMeasurements.polarData) representing 
+                        | this object in it's current state
+        ---------------------------------------------------------------------
+        
+        """
+
+        system_response = self.get_system_resonse()
+        pd = polarData.from2dArray(system_response.numpy(), self.angles.numpy(), self.fs.numpy(), "f")
+
+        return pd
 
 
 

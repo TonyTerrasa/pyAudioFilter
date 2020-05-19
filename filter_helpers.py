@@ -47,13 +47,17 @@ def octaves_to(freq, appendFs=False):
 
     return octspace
 
-def plot_sos(sos, fs, show=True):
+# def plot_sos(sos, fs, show=True):
 
 
-    w, h = sig.sosfreqz(sos, fs)
+def plot_zpk(z, p, k, worN=5000, fs=44.1e3, show=True):
 
-    # gets the poles and zeros of the given second order system
-    z , p, _ = sig.sos2zpk(sos)
+    if isinstance(worN, float): 
+        print("Float given instead of integer for length of freqz. This will be converted to an integer")
+        worN=int(worN)
+
+    # int casting to ensure supplied the number of frequencies to calculate
+    w, h = sig.freqz_zpk(z, p, k, worN=worN) # rad/samp, magnitudes
 
     fig = plt.figure(figsize=(20,4))
     gs = GridSpec(2, 2, width_ratios = [1,2])
@@ -66,7 +70,7 @@ def plot_sos(sos, fs, show=True):
                                  color='grey', ls='dotted', alpha=0.5)
     ax1.add_patch(unit_circle)
 
-    #
+    # plot poles and zeros
     for pole in p:
         plt.plot(pole.real, pole.imag, 'x', markersize=7, alpha=0.7, color='blue')
     for zero in z:
@@ -106,5 +110,5 @@ def plot_sos(sos, fs, show=True):
 
 
 
-def plot_zpk(z, p, k, fs, show=True):
-    plot_sos(sig.zpk2sos(z,p,k), fs, show)
+# def plot_zpk(z, p, k, fs, show=True):
+#     plot_sos(sig.zpk2sos(z,p,k), fs, show)

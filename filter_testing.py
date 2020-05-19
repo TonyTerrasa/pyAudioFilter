@@ -41,7 +41,7 @@ def test_apply_filter():
     filename = "/home/terrasa/UROP/polar-measurement/data/19_Jan15_fixedpkls/spv1840.pkl" 
     pd = polarData.fromPkl(filename)
     filt = ZPKOptimizableFilter(num_zeros=2,num_poles=1)
-    worN = len(pd[0].f())
+    worN = len(pd[0].f()) # number of frequencies
     fs = pd[0].fs
     filt_freqz = filt.freqz(worN, fs)
 

@@ -12,7 +12,7 @@ import tensorflow as tf
 import numpy as np
 import scipy.signal as sig
 from pythonAudioMeasurements.audioSample import audioSample
-from pyAudioFilter.filter_helpers import *
+from pyAudioFilter.filter_helpers import plot_zpk
 
 
 #plot_sos(target, FS)
@@ -64,15 +64,13 @@ class ZPKOptimizableFilter:
             print("Float given instead of integer for length of freqz. This will be converted to an integer")
             worN=int(worN)
 
-        f, h = sig.freqz_zpk(self.get_ps(answer_complex=True), self.get_zs(), \
-            self.get_k(), worN=worN,fs=fs)
-
-        print(f, h)
+        w, h = sig.freqz_zpk(self.get_zs(), self.get_ps(answer_complex=True), \
+            self.get_k(), worN=worN)
 
         return audioSample(h, type="f", Fs=fs) 
 
     
-    def get_magnitudes_tf(self, freqs):
+    def get_magnitudes_tf(self, freqs, fs=44.1e3):
         """
 
         Create a transfer function at the given frequencies for the zpk 
@@ -95,8 +93,8 @@ class ZPKOptimizableFilter:
         
         """
         
-        # complex valued, rad/sec omegas 
-        omegas = 2*pi*freqs
+        # complex valued, rad/samp omegas 
+        omegas = 2*pi*freqs/fs
         jomegas = tf.complex(tf.zeros(tf.shape(freqs),dtype=freqs.dtype), 2*pi*freqs)
         ejw = tf.exp(jomegas) 
 
@@ -142,6 +140,14 @@ class ZPKOptimizableFilter:
 
         for p in self.ps:
             p.assign(tf.clip_by_norm(p, norm))
+
+
+    def visualize(self, fs=44.1e3):
+        """
+        use filter_helpers.plot_zpk to vizualize the poles and
+        zeros for this reponse
+        """
+        plot_zpk(self.get_zs(), self.get_ps(answer_complex=True), self.get_k())
 
 
     def get_zs(self):
