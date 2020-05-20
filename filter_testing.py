@@ -1,3 +1,9 @@
+"""
+
+Functions for testing the core functionalities of the ZPKOptimizableFilter
+
+"""
+
 from __future__ import print_function
 import numpy as np
 import tensorflow as tf
@@ -10,7 +16,7 @@ from pyAudioFilter.zpk_optimizable_filter import ZPKOptimizableFilter
 
 def test_get_vars():
     """
-    Test getter functions
+    Getter functions
     """
 
     filt = ZPKOptimizableFilter(num_zeros=2,num_poles=1)
@@ -29,8 +35,6 @@ def test_freqz():
 
     freq_response = filt.freqz(10e3, 44e3)
     freq_response.plot(both=True)
-    # print(freq_response.data)
-    # print(freq_response.f())
 
 def test_apply_filter():
     """
@@ -43,7 +47,7 @@ def test_apply_filter():
     filt = ZPKOptimizableFilter(num_zeros=2,num_poles=1)
     worN = len(pd[0].f()) # number of frequencies
     fs = pd[0].fs
-    filt_freqz = filt.freqz(worN, fs)
+    filt_freqz = filt.freqz(worN, fs) # frequency response, audioSample object
 
     filt_freqz.plot(both=True, fig=3, show=False, figtitle="Filter")
 
@@ -58,7 +62,8 @@ def test_apply_filter():
 
 def pd_convert():
     """
-    Application of a zpk filter to a polarData object
+    Conversion of polarData object to objects compatible 
+    compatible with TensorFlow
     """
 
     

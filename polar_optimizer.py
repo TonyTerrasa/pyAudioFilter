@@ -1,4 +1,5 @@
 """
+
 This defines a class that works with a data format already developed for handling
 polar data and optimizing a 
 
@@ -23,10 +24,32 @@ class PolarOptimizer:
 
     def __init__(self, angles, freqs, microphones, fs=44.1e3, learning_rate=0.1):
         """
-        target_response should be iterable and indexable as 
-        [angle, i] to yield an amplitude for target_freqs[i] in db
 
-        microphone should be a polarData object
+        Object enclosing ability to optimize a microphone array response by
+        applying one filter to each microphone in the array. TF equivalent
+        of a polarData object
+        
+        
+        ---------------------------------------------------------------------
+        INPUTS
+        ---------------------------------------------------------------------
+        angles			| (tf.Tensor) the angles at which the microphone was 
+                        | measured
+        ---------------------------------------------------------------------
+        freqs			| (tf.Tensor) frequencies at which the microphone 
+                        | was measured
+        ---------------------------------------------------------------------
+        microphones		| (1d array of 2d tf.Tensor) in which microphones[i]
+                        | is a the 2d response of microphone i such that
+                        | microphones[i][j][k] is the magnitude of freqs[k]
+                        | at angles[j] for the ith microphone
+        ---------------------------------------------------------------------
+        fs      		| (float) sampling rate at which the microphone data 
+                        | was taken
+        ---------------------------------------------------------------------
+        learning_rate	| (float)
+        ---------------------------------------------------------------------
+
         """
         self.angles = angles
         self.freqs = freqs
@@ -97,6 +120,8 @@ class PolarOptimizer:
         and for a target frequency range
 
         ---------------------------------------------------------------------
+        INPUTS
+        ---------------------------------------------------------------------
         stop_band_theta		| (2-entry int,float) containing the coordinates
         ---------------------------------------------------------------------
         target_freq_range	| (2-entry int,flot) containing upper and lower
@@ -150,16 +175,26 @@ class PolarOptimizer:
 
         return loss
             
-    def train(self, stop_bands_theta, target_freq_range, threshold=-20.):
+    def train(self, stop_band_theta, target_freq_range, threshold=-20.):
+        """
 
+        Run one step of gradient descent
+        
+        
+        ---------------------------------------------------------------------
+        INPUTS
+        ---------------------------------------------------------------------
+        stop_band_theta			| () 
+        ---------------------------------------------------------------------
+        target_freq_range			| () 
+        ---------------------------------------------------------------------
 
-        self.current_loss = 0
-            
+        """
+
         # calculate the gradients of the loss for each variable
         with tf.GradientTape() as t:
 
-            for stop_band in stop_bands_theta:
-                self.current_loss += self.loss(stop_band, target_freq_range,\
+            self.current_loss = self.loss(stop_band_theta, target_freq_range,\
                     threshold=threshold)
 
             grads = t.gradient(self.current_loss, self.train_vars)
@@ -182,6 +217,7 @@ class PolarOptimizer:
 
     def get_system_resonse(self):
         """
+
         Get the 2-d array representing the total system response including 
         the filters in the frequency domain
         
@@ -221,6 +257,7 @@ class PolarOptimizer:
 
     def to_polar_data(self):
         """
+
         Create a polarData object from this optimizer
         
         ---------------------------------------------------------------------
@@ -236,38 +273,4 @@ class PolarOptimizer:
         pd = polarData.from2dArray(system_response.numpy(), self.angles.numpy(), self.fs.numpy(), "f")
 
         return pd
-
-
-
-
-
-if __name__ == "__main__":
-    filename = "/home/terrasa/UROP/polar-measurement/data/19_Jan15_fixedpkls/spv1840.pkl" 
-
-    pd = polarData.fromPkl(filename)
-
-    mic_1 = Microphone(pd, (0,0))
-    mic_2 = Microphone(pd, (100,200))
-    mic_3 = Microphone(pd, (-100,200))
-    mic_array =  MicrophoneArray([mic_1, mic_2, mic_3])
-    # mic_array.visualize()
-
-
-    angles, freqs, mic_responses = mic_array.tf_prep()
-
-    angles = tf.constant(angles)
-    freqs = tf.constant(freqs)
-    mic_responses = [tf.constant(mic) for mic in mic_responses]
-
-    po = PolarOptimizer(angles, freqs, mic_responses)
-
-    response = po.get_system_resonse()
-
-    print("Total Reponse:", response)
-
-
-
-
-
-
 

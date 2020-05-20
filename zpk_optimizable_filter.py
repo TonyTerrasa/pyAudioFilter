@@ -1,7 +1,9 @@
 """
-Class that trains biquad filter by adjusting the poles and zeros to get a desires
-amplitude response. Note that there is no preservation of phase at this point and that
-loss is only calculated against the give frequency and amplitudes
+
+Class representing a filter that can be learned by adjusting poles, 
+zeros, and a gain value. It provides tools for building optimizers, 
+and is meant to be used within or as a parent class of a class that 
+contains the loss and training functions
 
 
 @author: Tony Terrasa
@@ -23,7 +25,27 @@ pi = np.pi
 class ZPKOptimizableFilter:
 
     def __init__(self, num_zeros=2, num_poles=1, learning_rate=0.1):
-        # optimizing/pushing the poles and zeros of this system
+        """
+
+        Filter in zpk format for learning with TensorFlow. Defaults to a 
+        biquad with two real zeros and pair of complex conjugate poles
+        
+        
+        ---------------------------------------------------------------------
+        INPUTS
+        ---------------------------------------------------------------------
+        num_zeros		| (int) the number of ~real~ zeros to include in this 
+                        | filter
+        ---------------------------------------------------------------------
+        num_poles		| (int) number of PAIRS of ~complex-conjugate~ poles
+        ---------------------------------------------------------------------
+        learning_rate	| (float) can be used in gradient descent if used as 
+                        | a parent class or if it's own learning rate is 
+                        | desired
+        ---------------------------------------------------------------------
+        
+        """
+
         self.zs = [tf.Variable(tf.random.uniform(shape=(1,), dtype=tf.float64)) for i in range(num_zeros)] # pure real
         self.ps = [tf.Variable(tf.random.uniform(shape=(2,), dtype=tf.float64)) for i in range(num_poles)] # complex (includ CC)
         self.g = tf.Variable(tf.random.uniform(shape=(1,), dtype=tf.float64)) # gain
@@ -39,6 +61,7 @@ class ZPKOptimizableFilter:
 
     def freqz(self, worN, fs):
         """
+
         Returns an audioSample of the frequency response corresponding to 
         the zpk filter. Inputs are the same as scipy.signal.freqz_zpk
 
@@ -75,11 +98,21 @@ class ZPKOptimizableFilter:
 
         Create a transfer function at the given frequencies for the zpk 
         as a tf object 
+
+        Operates under the working principle of scipy.signal.freqz, that is:
+
+                    jw                 -jw              -jwM
+           jw    B(e  )    b[0] + b[1]e    + ... + b[M]e
+        H(e  ) = ------ = -----------------------------------
+                   jw                 -jw              -jwN
+                A(e  )    a[0] + a[1]e    + ... + a[N]e
+
+        source: https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.freqz.html#scipy.signal.freqz
         
         ---------------------------------------------------------------------
         INPUTS
         ---------------------------------------------------------------------
-        freqs   		| (tf.Variable) list of frequencies at which to 
+        freqs   		| (tf.Tensor) list of frequencies at which to 
                         | calculate the gain  
         ---------------------------------------------------------------------
         
@@ -87,7 +120,7 @@ class ZPKOptimizableFilter:
         ---------------------------------------------------------------------
         OUTPUTS
         ---------------------------------------------------------------------
-        (tf.Variable) containg the transfer function gains at the given 
+        (tf.Tensor) containg the transfer function gains at the given 
         frequencies. Note that this is the 
         ---------------------------------------------------------------------
         
@@ -105,10 +138,8 @@ class ZPKOptimizableFilter:
         denominator = 1
 
         for z in self.zs:
-            # print(z)
             complex_z = tf.complex(z, tf.cast(0., z.dtype)) 
             numerator *= (ejw - complex_z)
-            # print(numerator)
         for p in self.ps:
             complex_p1 = tf.complex(p[0], p[1])
             complex_p2 = tf.complex(p[0], -p[1])
@@ -125,10 +156,9 @@ class ZPKOptimizableFilter:
 
     def clip_poles_by_norm(self, norm=1.0):
         """
-        Clip the poles of this fliter by their norm. Typically done to 
-        maintain stability through the optimization process. Operation done
-        in place
-        
+        Clip the poles of this fliter by their norm IN PLACE. Typically done 
+        to maintain stability through the optimization process.         
+
         
         ---------------------------------------------------------------------
         INPUTS

@@ -1,7 +1,8 @@
 """
-Helper functions for the filter optimization
 
-functions written by: David Ramsay
+Miscellaneous helper functions including plotting
+
+author: David Ramsay
 """
 import numpy as np
 import scipy.signal as sig
@@ -47,10 +48,53 @@ def octaves_to(freq, appendFs=False):
 
     return octspace
 
-# def plot_sos(sos, fs, show=True):
+def plot_sos(sos, worN=5000, fs=44.1e3, show=True):
+    """
+
+    Visualize a second order system. 
+    
+    
+    ---------------------------------------------------------------------
+    INPUTS
+    ---------------------------------------------------------------------
+    sos				| as specified in scipy.signal
+    ---------------------------------------------------------------------
+    otherwise, see plot_zpk
+    ---------------------------------------------------------------------
+
+    """
+    z, p, k = sig.sos2zpk(sos)
+    plot_zpk(z, p, k, worN=worN, fs=fs, show=show)
 
 
 def plot_zpk(z, p, k, worN=5000, fs=44.1e3, show=True):
+
+    """
+
+    Visualize a system given the a list of zeros, poles and a gain
+    
+    
+    ---------------------------------------------------------------------
+    INPUTS
+    ---------------------------------------------------------------------
+    z			| (1-d iterable) of zeros of the system
+    ---------------------------------------------------------------------
+    p			| (1-d iterable) of poles of the system
+    ---------------------------------------------------------------------
+    k			| (float) gain of the system
+    ---------------------------------------------------------------------
+    worN		| as required by scipy.signal.freqz_zpk, list of 
+                | frequencies or number of frequencies to calculate the 
+                | reponse at
+    ---------------------------------------------------------------------
+    fs  		| (float) sampling frequency used to calculate the 
+                | frequencies in Hz
+    ---------------------------------------------------------------------
+    show		| whether or not to display the resulting graph using 
+                | plt.show()
+    ---------------------------------------------------------------------
+    
+    """
 
     if isinstance(worN, float): 
         print("Float given instead of integer for length of freqz. This will be converted to an integer")
@@ -107,8 +151,3 @@ def plot_zpk(z, p, k, worN=5000, fs=44.1e3, show=True):
     ax3.set_xlabel('Frequency (Hz)')
 
     if show: plt.show()
-
-
-
-# def plot_zpk(z, p, k, fs, show=True):
-#     plot_sos(sig.zpk2sos(z,p,k), fs, show)
