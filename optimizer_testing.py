@@ -74,14 +74,15 @@ def test_training_session():
     Run a full training session
     """
 
-    stop_band_theta = np.array([45, 135])
+    stop_band_theta = [45, 135]
     # stop_bands_theta = np.array([stop_band_theta, stop_band_theta+180])
 
     target_range_freq = [500, 1000]
 
     losses = []
+    NUM_EPOCHS = 60
 
-    for epoch in range(60):
+    for epoch in range(NUM_EPOCHS):
 
         po.train(stop_band_theta, target_range_freq, threshold=-20.)
         losses.append(po.current_loss.numpy()) # keep track of the loss over the epochs
